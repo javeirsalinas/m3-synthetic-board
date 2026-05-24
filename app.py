@@ -2,18 +2,18 @@ import streamlit as st
 from google import genai
 from google.genai import types
 
-# CONFIGURACIÓN DE LA PÁGINA DE STREAMLIT
+# 1. CONFIGURACIÓN DE MAQUETACIÓN PREMIUM
 st.set_page_config(
-    page_title="M3 Synthetic Board",
-    page_icon="🤖",
-    layout="wide"
+    page_title="M3 Synthetic Board | Centro de Comando",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# RECOLECCIÓN AUTOMÁTICA DE LA API KEY DESDE LOS SECRETOS SEGUROS
-# Si no está configurado el secreto, se busca en la barra lateral como plan de respaldo
+# RECOLECCIÓN DE CREDENCIALES SEGURAS
 api_key_segura = st.secrets.get("GEMINI_API_KEY", "")
 
-# SYSTEM PROMPTS (El "Agent Lake" con las 7 miradas expertas de Misión 3)
+# SYSTEM PROMPTS (Diccionario de Agentes)
 SYSTEM_PROMPTS = {
     "SecretarioGeneral": (
         "Actúas como Secretario Técnico del Comité Directivo de Misión 3. Organiza la deliberación "
@@ -28,7 +28,7 @@ SYSTEM_PROMPTS = {
     "ExpertoEmprendimiento": (
         "Actúas como el Experto en Emprendimiento de Misión 3. Evalúas la calidad de las propuestas, "
         "modelos de negocio, equipos, tracción y escalabilidad. ¿La propuesta tiene un problema real? "
-        "¿El Business Model Canvas es coherente? ¿Qué programa corresponde: preincubación, incubación o aceleración?"
+        "Análisis rápido del modelo de negocio. ¿Qué programa corresponde: preincubación, incubación o aceleración?"
     ),
     "ExpertoInnovacion": (
         "Actúas como el Experto en Innovación de Misión 3. Evalúas novedad, diferenciación, madurez tecnológica "
@@ -41,9 +41,9 @@ SYSTEM_PROMPTS = {
         "¿Qué empresas se benefician? ¿Cómo convertir conocimiento académico en valor empresarial?"
     ),
     "ExpertoConcursos": (
-        "Actúas como el Experto en Concursos y Programas de Misión 3. Diseña bases, criterios, cronogramas, "
+        "Actúas como el Experto en Concursos y Programas de Misión 3. Diseña bases, criteria, cronogramas, "
         "jurados, beneficios, embudos y seguimiento. ¿Cómo mejorar las bases? ¿Qué criterios de evaluación usar? "
-        "¿Cómo evitar sesgos regionales?"
+        "Análisis de sesgos."
     ),
     "ExpertoComunicaciones": (
         "Actúas como el Experto en Comunicaciones de Misión 3. Convierte la decisión en narrativa, campaña, "
@@ -57,29 +57,53 @@ SYSTEM_PROMPTS = {
     )
 }
 
-# INTERFAZ DE USUARIO: BARRA LATERAL
-st.sidebar.title("⚙️ Configuración")
-model_choice = st.sidebar.selectbox("Modelo Core", ["gemini-2.5-flash", "gemini-2.5-pro"])
+# 2. SECCIÓN LATERAL DE CONTROL (SIDEBAR)
+st.sidebar.image("https://img.icons8.com/fluent/96/000000/artificial-intelligence.png", width=60)
+st.sidebar.title("M3 Control Panel")
+st.sidebar.markdown("---")
 
-# Si el secreto no fue cargado correctamente, mostramos una advertencia e input de respaldo
-if not api_key_segura:
-    api_key_input = st.sidebar.text_input("Gemini API Key (Respaldo)", type="password")
-    api_key_final = api_key_input
-else:
-    st.sidebar.success("🔑 API Key cargada automáticamente desde Secrets.")
-    api_key_final = api_key_segura
-
-# INTERFAZ DE USUARIO: ÁREA PRINCIPAL
-st.title("🤖 M3 Synthetic Board")
-st.caption("Comité Directivo Agéntico de Misión 3 — Infraestructura Multiagente para Decisiones Estratégicas")
-
-caso_humano = st.text_area(
-    "📝 Describa el caso, reto o iniciativa a evaluar por el Comité Directivo Sintético:",
-    value="Evaluar si Misión 3 debe lanzar un reto de innovación abierta para mejorar la gestión de residuos en una municipalidad de Lima. Preparar recomendación, riesgos, aliados, campaña y plan operativo.",
-    height=120
+model_choice = st.sidebar.selectbox(
+    "🤖 Motor de Inteligencia", 
+    ["gemini-2.5-flash", "gemini-2.5-pro"],
+    help="Elige el modelo cerebral para la deliberación. Pro ofrece mayor profundidad analítica."
 )
 
-# FUNCIÓN DE LLAMADA TÉCNICA A CADA AGENTE
+st.sidebar.markdown("### Estado de Infraestructura")
+if api_key_segura:
+    st.sidebar.success("🔒 Cloud Vault: Conectado")
+    api_key_final = api_key_segura
+else:
+    api_key_input = st.sidebar.text_input("Introducir Gemini API Key manualmente", type="password")
+    api_key_final = api_key_input
+    if not api_key_input:
+        st.sidebar.warning("⚠️ Requiere llave de acceso")
+
+# 3. INTERFAZ GRÁFICA PRINCIPAL (HERO SECTION)
+# Imagen conceptual de agentes de IA en reunión con estética futurista y atractiva
+st.image("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80", use_container_width=True)
+
+st.title("🧠 M3 Synthetic Board")
+st.subheader("Plataforma Multiagente de Soporte a Decisiones Estratégicas")
+
+# KPIs de Estado de la Plataforma (UX/UI de Dashboard Corporativo)
+col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+col_kpi1.metric(label="Agentes Convocados", value="8 Expertos")
+col_kpi2.metric(label="Estructura de Datos", value="Agent Lake V1")
+col_kpi3.metric(label="Nivel de Supervisión", value="Jerárquico")
+col_kpi4.metric(label="Rol Humano", value="Validador Final")
+
+st.markdown("---")
+
+# ZONA DE TRABAJO (Entrada de Datos)
+st.markdown("### 📝 Caso de Negocio o Desafío Institucional")
+caso_humano = st.text_area(
+    "Instrucción: Ingrese la propuesta o el problema técnico que el comité sintético debe analizar, contrastar y documentar.",
+    value="Evaluar si Misión 3 debe lanzar un reto de innovación abierta para mejorar la gestión de residuos en una municipalidad de Lima. Preparar recomendación, riesgos, aliados, campaña y plan operativo.",
+    height=120,
+    label_visibility="collapsed"
+)
+
+# FUNCIÓN TÉCNICA DE LLAMADA
 def consultar_agente_api(client, nombre_agente: str, entrada: str, contexto: str = "") -> str:
     prompt_sistema = SYSTEM_PROMPTS.get(nombre_agente, "")
     contenido = f"Caso a evaluar: {entrada}\n\n"
@@ -91,45 +115,45 @@ def consultar_agente_api(client, nombre_agente: str, entrada: str, contexto: str
         contents=contenido,
         config=types.GenerateContentConfig(
             system_instruction=prompt_sistema,
-            temperature=0.2, # Disminuido a 0.2 para asegurar consistencia corporativa
+            temperature=0.2,
         ),
     )
     return response.text
 
-# EJECUCIÓN SÍNCRONA DEL COMITÉ
-if st.button("🚀 Convocar Comité Directivo Sintético"):
+# CONTROL DE EJECUCIÓN CON DISEÑO MEJORADO
+if st.button("🚀 INICIAR DELIBERACIÓN ESTRATÉGICA", use_container_width=True):
     if not api_key_final:
-        st.error("Error: No se detectó ninguna Gemini API Key. Configúrala en los Secrets de Streamlit o en la barra lateral.")
+        st.error("❌ Acción bloqueada: No se detecta una clave API válida para conectar con los agentes.")
     else:
         try:
             client = genai.Client(api_key=api_key_final)
             
-            with st.status("⏳ Comité Directivo en sesión. Procesando análisis de expertos...", expanded=True) as status:
+            # Animación e historial de ejecución visual interactiva
+            with st.status("🛸 Sincronizando Agent Lake y ejecutando consultas virtuales...", expanded=True) as status:
                 
-                st.write("🕵️‍♂️ 1/7 Analizando Entorno Territorial (Ecosistemas)...")
+                st.write("🌐 `[Agente 1/7]` **Ecosistemas** analizando el impacto territorial y actores clave...")
                 op_ecosistemas = consultar_agente_api(client, "ExpertoEcosistemas", caso_humano)
                 
-                st.write("🔬 2/7 Evaluando viabilidad técnica y madurez (Innovación)...")
+                st.write("🔬 `[Agente 2/7]` **Innovación** tasando el grado de novedad tecnológica...")
                 op_innovacion = consultar_agente_api(client, "ExpertoInnovacion", caso_humano)
                 
-                st.write("💼 3/7 Evaluando modelo de negocio y escalabilidad (Emprendimiento)...")
+                st.write("📈 `[Agente 3/7]` **Emprendimiento** evaluando el encaje problema-solución...")
                 op_emprendimiento = consultar_agente_api(client, "ExpertoEmprendimiento", caso_humano)
                 
-                st.write("🏛️ 4/7 Vinculando capacidades académicas e investigadores (Universidad-Empresa)...")
+                st.write("🏛️ `[Agente 4/7]` **Vinculación U-E** mapeando laboratorios y oferta académica...")
                 op_vinculacion = consultar_agente_api(client, "ExpertoVinculacion", caso_humano)
                 
-                st.write("📋 5/7 Diseñando estructura de bases y evaluación (Concursos)...")
+                st.write("📋 `[Agente 5/7]` **Concursos** estructurando bases de postulación sugeridas...")
                 op_concursos = consultar_agente_api(client, "ExpertoConcursos", caso_humano)
                 
-                st.write("📢 6/7 Estructurando narrativa pública y canales (Comunicaciones)...")
+                st.write("📢 `[Agente 6/7]` **Comunicaciones** diseñando la narrativa estratégica pública...")
                 op_comunicaciones = consultar_agente_api(client, "ExpertoComunicaciones", caso_humano)
                 
-                st.write("⚙️ 7/7 Trazando flujos digitales y herramientas (Automatización)...")
+                st.write("⚙️ `[Agente 7/7]` **Automatización** modelando flujos y dashboards de captura...")
                 op_automatizacion = consultar_agente_api(client, "ExpertoAutomatizacion", caso_humano)
                 
-                st.write("✍️ Secretario General analizando posturas y redactando el Acta del Comité...")
+                st.write("✍️ `[Orquestador]` **Secretario General** consolidando consensos, riesgos y dictando acta final...")
                 
-                # Consolidación completa de las minutas en la memoria del Agent Lake
                 memoria_deliberacion = (
                     f"### [Opinión] Experto en Ecosistemas\n{op_ecosistemas}\n\n"
                     f"### [Opinión] Experto en Innovación\n{op_innovacion}\n\n"
@@ -150,28 +174,34 @@ if st.button("🚀 Convocar Comité Directivo Sintético"):
                 )
                 
                 acta_final = consultar_agente_api(client, "SecretarioGeneral", prompt_secretario)
-                status.update(label="✅ Sesión concluida. Acta oficial generada.", state="complete", expanded=False)
+                status.update(label="⚡ Consolidación finalizada con éxito.", state="complete", expanded=False)
             
-            # Guardamos los resultados en la sesión para evitar pérdida de datos por recargas
-            st.session_state["acta_comite_completa"] = acta_final
-            st.session_state["trazabilidad_lake"] = memoria_deliberacion
+            st.session_state["acta_premium"] = acta_final
+            st.session_state["lake_premium"] = memoria_deliberacion
 
         except Exception as e:
-            st.error(f"Ocurrió un error en la ejecución del comité: {e}")
+            st.error(f"Fallo en la comunicación agéntica: {e}")
 
-# DESPLIEGUE EN PANTALLA DE LOS DOCUMENTOS DE SALIDA
-if "acta_comite_completa" in st.session_state:
-    st.success("### 📜 Acta de Decisión — Comité Directivo Sintético M3")
-    st.markdown(st.session_state["acta_comite_completa"])
+# 4. ENTREGA DE RESULTADOS DE ALTA FIDELIDAD (OUTPUT UX)
+if "acta_premium" in st.session_state:
+    st.markdown("### 🏆 Documento de Salida del Comité")
     
-    st.divider()
+    # Dividimos la visualización en Pestañas para mejorar la carga cognitiva del usuario
+    tab_acta, tab_trazabilidad = st.tabs(["📜 Acta Ejecutiva Final", "🔍 Auditoría de Agent Lake"])
     
-    with st.expander("🔍 Revisar Trazabilidad Agéntica Completa (Agent Lake)"):
-        st.markdown(st.session_state["trazabilidad_lake"])
+    with tab_acta:
+        # Contenedor visual destacado con un diseño limpio
+        with st.container(border=True):
+            st.markdown(st.session_state["acta_premium"])
+            
+        st.download_button(
+            label="📥 EXPORTAR ACTA OFICIAL (MARKDOWN)",
+            data=st.session_state["acta_premium"],
+            file_name="acta_comite_m3.md",
+            mime="text/markdown",
+            use_container_width=True
+        )
         
-    st.download_button(
-        label="📥 Descargar Acta de Comité (.md)",
-        data=st.session_state["acta_comite_completa"],
-        file_name="acta_comite_m3_completo.md",
-        mime="text/markdown"
-    )
+    with tab_trazabilidad:
+        st.info("La siguiente información es el registro auditable de lo que cada experto opinó de forma independiente.")
+        st.markdown(st.session_state["lake_premium"])
