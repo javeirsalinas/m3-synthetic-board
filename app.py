@@ -13,7 +13,7 @@ st.set_page_config(
 # RECOLECCIÓN DE CREDENCIALES SEGURAS
 api_key_segura = st.secrets.get("GEMINI_API_KEY", "")
 
-# SYSTEM PROMPTS (Diccionario de Agentes)
+# SYSTEM PROMPTS (El "Agent Lake" con las 7 miradas expertas de Misión 3)
 SYSTEM_PROMPTS = {
     "SecretarioGeneral": (
         "Actúas como Secretario Técnico del Comité Directivo de Misión 3. Organiza la deliberación "
@@ -41,7 +41,7 @@ SYSTEM_PROMPTS = {
         "¿Qué empresas se benefician? ¿Cómo convertir conocimiento académico en valor empresarial?"
     ),
     "ExpertoConcursos": (
-        "Actúas como el Experto en Concursos y Programas de Misión 3. Diseña bases, criteria, cronogramas, "
+        "Actúas como el Experto en Concursos y Programas de Misión 3. Diseña bases, criterios, cronogramas, "
         "jurados, beneficios, embudos y seguimiento. ¿Cómo mejorar las bases? ¿Qué criterios de evaluación usar? "
         "Análisis de sesgos."
     ),
@@ -78,14 +78,14 @@ else:
     if not api_key_input:
         st.sidebar.warning("⚠️ Requiere llave de acceso")
 
-# 3. INTERFAZ GRÁFICA PRINCIPAL (HERO SECTION)
-# Imagen conceptual de agentes de IA en reunión con estética futurista y atractiva
-st.image("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80", use_container_width=True)
+# 3. INTERFAZ GRÁFICA PRINCIPAL (HERO SECTION CON NUEVA IMAGEN FUTURISTA)
+# Implementamos la imagen de la mesa interactiva de microchips con robots humanoides en deliberación de datos
+st.image("https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80", use_container_width=True)
 
 st.title("🧠 M3 Synthetic Board")
 st.subheader("Plataforma Multiagente de Soporte a Decisiones Estratégicas")
 
-# KPIs de Estado de la Plataforma (UX/UI de Dashboard Corporativo)
+# KPIs de Estado de la Plataforma
 col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 col_kpi1.metric(label="Agentes Convocados", value="8 Expertos")
 col_kpi2.metric(label="Estructura de Datos", value="Agent Lake V1")
@@ -120,7 +120,7 @@ def consultar_agente_api(client, nombre_agente: str, entrada: str, contexto: str
     )
     return response.text
 
-# CONTROL DE EJECUCIÓN CON DISEÑO MEJORADO
+# CONTROL DE EJECUCIÓN
 if st.button("🚀 INICIAR DELIBERACIÓN ESTRATÉGICA", use_container_width=True):
     if not api_key_final:
         st.error("❌ Acción bloqueada: No se detecta una clave API válida para conectar con los agentes.")
@@ -128,7 +128,6 @@ if st.button("🚀 INICIAR DELIBERACIÓN ESTRATÉGICA", use_container_width=True
         try:
             client = genai.Client(api_key=api_key_final)
             
-            # Animación e historial de ejecución visual interactiva
             with st.status("🛸 Sincronizando Agent Lake y ejecutando consultas virtuales...", expanded=True) as status:
                 
                 st.write("🌐 `[Agente 1/7]` **Ecosistemas** analizando el impacto territorial y actores clave...")
@@ -186,11 +185,9 @@ if st.button("🚀 INICIAR DELIBERACIÓN ESTRATÉGICA", use_container_width=True
 if "acta_premium" in st.session_state:
     st.markdown("### 🏆 Documento de Salida del Comité")
     
-    # Dividimos la visualización en Pestañas para mejorar la carga cognitiva del usuario
     tab_acta, tab_trazabilidad = st.tabs(["📜 Acta Ejecutiva Final", "🔍 Auditoría de Agent Lake"])
     
     with tab_acta:
-        # Contenedor visual destacado con un diseño limpio
         with st.container(border=True):
             st.markdown(st.session_state["acta_premium"])
             
