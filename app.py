@@ -1,6 +1,7 @@
 import streamlit as st
 from google import genai
 from google.genai import types
+import time  # Necesario para pausar y reintentar si el servidor se satura
 
 # 1. CONFIGURACIÓN DE MAQUETACIÓN PREMIUM
 st.set_page_config(
@@ -63,9 +64,9 @@ st.sidebar.title("M3 Control Panel")
 st.sidebar.markdown("---")
 
 model_choice = st.sidebar.selectbox(
-    "🤖 Motor de Inteligencia", 
+    "🤖 Motor de Inteligencia Principal", 
     ["gemini-2.5-flash", "gemini-2.5-pro"],
-    help="Elige el modelo cerebral para la deliberación. Pro ofrece mayor profundidad analítica."
+    help="Elige el modelo cerebral para la deliberación."
 )
 
 st.sidebar.markdown("### Estado de Infraestructura")
@@ -78,8 +79,7 @@ else:
     if not api_key_input:
         st.sidebar.warning("⚠️ Requiere llave de acceso")
 
-# 3. INTERFAZ GRÁFICA PRINCIPAL (HERO SECTION CON NUEVA IMAGEN FUTURISTA)
-# Implementamos la imagen de la mesa interactiva de microchips con robots humanoides en deliberación de datos
+# 3. INTERFAZ GRÁFICA PRINCIPAL (HERO SECTION)
 st.image("https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80", use_container_width=True)
 
 st.title("🧠 M3 Synthetic Board")
@@ -89,7 +89,7 @@ st.subheader("Plataforma Multiagente de Soporte a Decisiones Estratégicas")
 col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 col_kpi1.metric(label="Agentes Convocados", value="8 Expertos")
 col_kpi2.metric(label="Estructura de Datos", value="Agent Lake V1")
-col_kpi3.metric(label="Nivel de Supervisión", value="Jerárquico")
+col_kpi3.metric(label="Tolerancia a Fallos", value="Alta (Auto-Retry)")
 col_kpi4.metric(label="Rol Humano", value="Validador Final")
 
 st.markdown("---")
@@ -103,22 +103,32 @@ caso_humano = st.text_area(
     label_visibility="collapsed"
 )
 
-# FUNCIÓN TÉCNICA DE LLAMADA
-def consultar_agente_api(client, nombre_agente: str, entrada: str, contexto: str = "") -> str:
+# FUNCIÓN DE LLAMADA MEJORADA (CON POLÍTICA DE REINTENTOS PARA EVITAR ERROR 503)
+def consultar_agente_api_resiliente(client, nombre_agente: str, entrada: str, contexto: str = "") -> str:
     prompt_sistema = SYSTEM_PROMPTS.get(nombre_agente, "")
     contenido = f"Caso a evaluar: {entrada}\n\n"
     if contexto:
         contenido += f"Contexto y deliberación previa del comité:\n{contexto}"
         
-    response = client.models.generate_content(
-        model=model_choice,
-        contents=contenido,
-        config=types.GenerateContentConfig(
-            system_instruction=prompt_sistema,
-            temperature=0.2,
-        ),
-    )
-    return response.text
+    intentos_maximos = 3
+    for intento in range(intentos_maximos):
+        try:
+            response = client.models.generate_content(
+                model=model_choice,
+                contents=contenido,
+                config=types.GenerateContentConfig(
+                    system_instruction=prompt_sistema,
+                    temperature=0.2,
+                ),
+            )
+            return response.text
+        except Exception as e:
+            # Si es el último intento, arroja el error definitivo
+            if intento == intentos_maximos - 1:
+                raise e
+            # Si no, avisa de la saturación por consola/interfaz, espera un momento y reintenta
+            time.sleep(2.5)  # Pausa estratégica para permitir que baje el pico de tráfico de Google
+            continue
 
 # CONTROL DE EJECUCIÓN
 if st.button("🚀 INICIAR DELIBERACIÓN ESTRATÉGICA", use_container_width=True):
@@ -128,28 +138,28 @@ if st.button("🚀 INICIAR DELIBERACIÓN ESTRATÉGICA", use_container_width=True
         try:
             client = genai.Client(api_key=api_key_final)
             
-            with st.status("🛸 Sincronizando Agent Lake y ejecutando consultas virtuales...", expanded=True) as status:
+            with st.status("🛸 Sincronizando Agent Lake y ejecutando consultas virtuales con protección anti-saturación...", expanded=True) as status:
                 
-                st.write("🌐 `[Agente 1/7]` **Ecosistemas** analizando el impacto territorial y actores clave...")
-                op_ecosistemas = consultar_agente_api(client, "ExpertoEcosistemas", caso_humano)
+                st.write("🌐 `[Agente 1/7]` **Ecosistemas** analizando el impacto territorial...")
+                op_ecosistemas = consultar_agente_api_resiliente(client, "ExpertoEcosistemas", caso_humano)
                 
                 st.write("🔬 `[Agente 2/7]` **Innovación** tasando el grado de novedad tecnológica...")
-                op_innovacion = consultar_agente_api(client, "ExpertoInnovacion", caso_humano)
+                op_innovacion = consultar_agente_api_resiliente(client, "ExpertoInnovacion", caso_humano)
                 
                 st.write("📈 `[Agente 3/7]` **Emprendimiento** evaluando el encaje problema-solución...")
-                op_emprendimiento = consultar_agente_api(client, "ExpertoEmprendimiento", caso_humano)
+                op_emprendimiento = consultar_agente_api_resiliente(client, "ExpertoEmprendimiento", caso_humano)
                 
-                st.write("🏛️ `[Agente 4/7]` **Vinculación U-E** mapeando laboratorios y oferta académica...")
-                op_vinculacion = consultar_agente_api(client, "ExpertoVinculacion", caso_humano)
+                st.write("🏛️ `[Agente 4/7]` **Vinculación U-E** mapeando laboratorios y oferta...")
+                op_vinculacion = consultar_agente_api_resiliente(client, "ExpertoVinculacion", caso_humano)
                 
-                st.write("📋 `[Agente 5/7]` **Concursos** estructurando bases de postulación sugeridas...")
-                op_concursos = consultar_agente_api(client, "ExpertoConcursos", caso_humano)
+                st.write("📋 `[Agente 5/7]` **Concursos** estructurando bases de postulación...")
+                op_concursos = consultar_agente_api_resiliente(client, "ExpertoConcursos", caso_humano)
                 
-                st.write("📢 `[Agente 6/7]` **Comunicaciones** diseñando la narrativa estratégica pública...")
-                op_comunicaciones = consultar_agente_api(client, "ExpertoComunicaciones", caso_humano)
+                st.write("📢 `[Agente 6/7]` **Comunicaciones** diseñando la narrativa estratégica...")
+                op_comunicaciones = consultar_agente_api_resiliente(client, "ExpertoComunicaciones", caso_humano)
                 
-                st.write("⚙️ `[Agente 7/7]` **Automatización** modelando flujos y dashboards de captura...")
-                op_automatizacion = consultar_agente_api(client, "ExpertoAutomatizacion", caso_humano)
+                st.write("⚙️ `[Agente 7/7]` **Automatización** modelando flujos digitales...")
+                op_automatizacion = consultar_agente_api_resiliente(client, "ExpertoAutomatizacion", caso_humano)
                 
                 st.write("✍️ `[Orquestador]` **Secretario General** consolidando consensos, riesgos y dictando acta final...")
                 
@@ -172,14 +182,14 @@ if st.button("🚀 INICIAR DELIBERACIÓN ESTRATÉGICA", use_container_width=True
                     f"Deliberación del comité:\n{memoria_deliberacion}"
                 )
                 
-                acta_final = consultar_agente_api(client, "SecretarioGeneral", prompt_secretario)
+                acta_final = consultar_agente_api_resiliente(client, "SecretarioGeneral", prompt_secretario)
                 status.update(label="⚡ Consolidación finalizada con éxito.", state="complete", expanded=False)
             
             st.session_state["acta_premium"] = acta_final
             st.session_state["lake_premium"] = memoria_deliberacion
 
         except Exception as e:
-            st.error(f"Fallo en la comunicación agéntica: {e}")
+            st.error(f"Fallo en la comunicación agéntica por alta demanda: {e}. Por favor, espere unos segundos e intente presionar el botón de nuevo.")
 
 # 4. ENTREGA DE RESULTADOS DE ALTA FIDELIDAD (OUTPUT UX)
 if "acta_premium" in st.session_state:
