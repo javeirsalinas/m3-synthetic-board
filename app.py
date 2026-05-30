@@ -37,9 +37,9 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CONEXIÓN EN TIEMPO REAL A GOOGLE SHEETS
+# 2. CONEXIÓN EN TIEMPO REAL OPTIMIZADA (CACHE ALTA VELOCIDAD)
 # ==========================================
-@st.cache_data(ttl="5s") # Sincronización casi instantánea (5 segundos)
+@st.cache_data(ttl="10m") # Cache optimizada a 10 minutos para descargas ultra veloces
 def cargar_datos():
     conn = st.connection("gsheets", type=GSheetsConnection)
     url_directa = "https://docs.google.com/spreadsheets/d/1aEIyDmHuHxzei8IRqMFKYDIZ1Hc3lvQoU6odzyuiL9M/edit?usp=sharing"
@@ -47,7 +47,6 @@ def cargar_datos():
 
 try:
     df = cargar_datos()
-    # Limpieza absoluta de la data de entrada
     df.columns = df.columns.str.strip()
     df['Categoria_Limpia'] = df['Categoria'].astype(str).str.strip().str.upper()
     df['Item_Limpio'] = df['Item'].astype(str).str.strip().str.lower()
@@ -56,11 +55,9 @@ except Exception as e:
     st.error("⚠️ Error al procesar la estructura de Google Sheets")
     st.stop()
 
-# NUEVO MOTOR DE BÚSQUEDA ULTRA FLUJO: Detecta palabras clave ocultas (ej: "miembroslinkedin")
 def buscar_valor_ultra_flexible(palabra_clave, valor_defecto):
     try:
         palabra_clave = palabra_clave.lower().strip()
-        # Busca cualquier celda en 'Item_Limpio' que CONTENGA la palabra clave (ej: 'linkedin')
         coincidencia = df[df['Item_Limpio'].str.contains(palabra_clave, na=False)]
         if not coincidencia.empty:
             val = coincidencia.iloc[0]['Valor_Numerico']
@@ -70,7 +67,6 @@ def buscar_valor_ultra_flexible(palabra_clave, valor_defecto):
     except:
         return valor_defecto
 
-# Búsqueda de texto para los KPIs de texto
 def buscar_texto_flexible(palabra_clave, valor_defecto):
     try:
         palabra_clave = palabra_clave.lower().strip()
@@ -144,7 +140,6 @@ with col_izq:
 with col_der:
     st.subheader("🤝 Ecosistema de Vinculación (V&E)")
     
-    # Intenta mapear dinámicamente las entidades
     u = buscar_valor_ultra_flexible("universidades", 20)
     i = buscar_valor_ultra_flexible("incubadoras", 20)
     c = buscar_valor_ultra_flexible("cámaras", 19)
@@ -204,7 +199,7 @@ with col_r3:
 st.markdown("---")
 
 # ==========================================
-# 7. SECCIÓN 4: ANALÍTICA DIGITAL Y REDES (EXTRACCIÓN DINÁMICA ABSOLUTA)
+# 7. SECCIÓN 4: ANALÍTICA DIGITAL Y REDES
 # ==========================================
 st.subheader("🌐 Visitas a Plataformas vs. Comunidad Digital")
 col_v1, col_v2 = st.columns(2)
@@ -228,7 +223,6 @@ with col_v1:
     st.plotly_chart(fig_visitas, use_container_width=True)
 
 with col_v2:
-    # AQUÍ SE RESUELVE TU SOLICITUD: Mapeo exacto conteniendo subcadenas como 'linkedin', 'instagram', etc.
     redes_lista = ['TikTok', 'Instagram', 'Facebook', 'LinkedIn', 'YouTube']
     valores_redes = [
         buscar_valor_ultra_flexible("tiktok", 3000),
@@ -241,7 +235,7 @@ with col_v2:
     df_redes_lista = pd.DataFrame({
         'Red Social': redes_lista,
         'Miembros': valores_redes
-    }).sort_values(by='Miembros', ascending=False) # Ordenado de mayor a menor impacto
+    }).sort_values(by='Miembros', ascending=False)
     
     fig_redes = px.bar(
         df_redes_lista,
