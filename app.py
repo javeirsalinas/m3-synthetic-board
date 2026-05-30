@@ -1,221 +1,253 @@
 import streamlit as st
-from google import genai
-from google.genai import types
-import time
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from streamlit_gsheets import GSheetsConnection
 
-# 1. CONFIGURACIÓN DE MAQUETACIÓN PREMIUM
+# ==========================================
+# 1. CONFIGURACIÓN DE LA PÁGINA Y UX/UI
+# ==========================================
 st.set_page_config(
-    page_title="M3 Synthetic Board | Centro de Comando",
-    page_icon="🧠",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Misión 3 - Dashboard Ejecutivo",
+    page_icon="🏛️",
+    layout="wide"
 )
 
-# RECOLECCIÓN DE CREDENCIALES SEGURAS
-api_key_segura = st.secrets.get("GEMINI_API_KEY", "")
+st.markdown("""
+    <style>
+    .main, [data-testid="stAppViewContainer"], [data-testid="stHeader"] { 
+        background-color: #ffffff !important; 
+    }
+    div[data-testid="metric-container"] {
+        background-color: #ffffff !important;
+        border-top: 4px solid #1e293b !important;
+        border-left: 1px solid #cbd5e1 !important;
+        border-right: 1px solid #cbd5e1 !important;
+        border-bottom: 1px solid #cbd5e1 !important;
+        padding: 20px !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+    }
+    [data-testid="stMetricValue"] { font-size: 30px !important; color: #000000 !important; font-weight: 700 !important; }
+    [data-testid="stMetricLabel"] { font-size: 14px !important; color: #0f172a !important; font-weight: 600 !important; }
+    h1, h2, h3, h4, h5, h6 { color: #000000 !important; font-family: Arial, sans-serif; }
+    p, span, li, td, th { color: #000000 !important; }
+    .stAlert { background-color: #f1f5f9 !important; border: 1px solid #cbd5e1 !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# SYSTEM PROMPTS OPTIMIZADOS EN TOKENS (Respuestas Ultra-Ejecutivas)
-RESTRICTION = " IMPORTANTE: Tu respuesta debe ser ultra-ejecutiva, directa al grano y tener un máximo de 150 palabras. Usa viñetas breves. No uses introducciones ni saludos."
+# ==========================================
+# 2. CONEXIÓN EN TIEMPO REAL A GOOGLE SHEETS
+# ==========================================
+@st.cache_data(ttl="1m") # Reducido a 1 minuto para actualizaciones más rápidas
+def cargar_datos():
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    url_directa = "https://docs.google.com/spreadsheets/d/1aEIyDmHuHxzei8IRqMFKYDIZ1Hc3lvQoU6odzyuiL9M/edit?usp=sharing"
+    return conn.read(spreadsheet=url_directa)
 
-SYSTEM_PROMPTS = {
-    "SecretarioGeneral": (
-        "Actúas como Secretario Técnico del Comité Directivo de Misión 3. Organiza la deliberación "
-        "entre agentes expertos, identifica consensos y disensos, y prepara una recomendación ejecutiva "
-        "estructurada en Markdown para validación humana final. Sé conciso y estratégico."
-    ),
-    "ExpertoEcosistemas": (
-        "Actúas como el Experto en Ecosistemas de Misión 3. Evalúas el contexto nacional, regional, "
-        "sectorial e institucional. ¿Qué impacto tendría en el ecosistema? ¿Qué actores deben participar? "
-        "¿Cómo se alinea con la tercera misión universitaria?" + RESTRICTION
-    ),
-    "ExpertoEmprendimiento": (
-        "Actúas como el Experto en Emprendimiento de Misión 3. Evalúas calidad de propuestas, "
-        "modelos de negocio, tracción y escalabilidad. ¿El problema es real? ¿Es coherente el modelo? "
-        "¿Qué programa corresponde: preincubación, incubación o aceleración?" + RESTRICTION
-    ),
-    "ExpertoInnovacion": (
-        "Actúas como el Experto en Innovación de Misión 3. Evalúas novedad, diferenciación, madurez tecnológica "
-        "y potencial de transferencia. ¿Es innovación incremental, sustancial o disruptiva? ¿Tiene base científica? "
-        "¿Nivel de madurez y riesgos técnicos?" + RESTRICTION
-    ),
-    "ExpertoVinculacion": (
-        "Actúas como el Experto en Vinculación Universidad-Empresa de Misión 3. Conecta oferta académica, "
-        "investigación, empresas y retos. ¿Qué facultades/laboratorios participan? ¿Qué empresas se benefician? "
-        "¿Cómo convertir conocimiento académico en valor?" + RESTRICTION
-    ),
-    "ExpertoConcursos": (
-        "Actúas como el Experto en Concursos y Programas de Misión 3. Diseña bases, criterios, cronogramas, "
-        "jurados y seguimiento. ¿Cómo mejorar las bases? ¿Qué criterios usar? ¿Cómo evitar sesgos regionales?" + RESTRICTION
-    ),
-    "ExpertoComunicaciones": (
-        "Actúas como el Experto en Comunicaciones de Misión 3. Convierte la decisión en narrativa, campaña, "
-        "LinkedIn, notas de prensa y mensajes institucionales. ¿Cuál es el mensaje estratégico? ¿Qué tono usar?" + RESTRICTION
-    ),
-    "ExpertoAutomatizacion": (
-        "Actúas como el Experto en Automatización de Procesos de Misión 3. Traduce la decisión en flujos, "
-        "formularios, dashboards, integraciones y tareas. ¿Qué se puede automatizar? ¿Qué herramientas usar?" + RESTRICTION
-    )
-}
+try:
+    df = cargar_datos()
+    # Limpieza básica por si hay espacios vacíos en el Excel
+    df.columns = df.columns.str.strip()
+    df['Categoria'] = df['Categoria'].astype(str).str.strip().str.upper()
+    df['Item'] = df['Item'].astype(str).str.strip()
+except Exception as e:
+    st.error("⚠️ Error al leer o procesar la estructura de Google Sheets")
+    st.stop()
 
-# 2. SECCIÓN LATERAL DE CONTROL (SIDEBAR)
-st.sidebar.image("https://img.icons8.com/fluent/96/000000/artificial-intelligence.png", width=60)
-st.sidebar.title("M3 Control Panel")
-st.sidebar.markdown("---")
+# Función auxiliar para extraer valores dinámicamente del Excel
+def obtener_valor(item_nombre, valor_defecto):
+    try:
+        fila = df[df['Item'] == item_nombre]
+        if not fila.empty:
+            return fila.iloc[0]['Valor']
+        return valor_defecto
+    except:
+        return valor_defecto
 
-model_choice = st.sidebar.selectbox(
-    "🤖 Motor de Inteligencia Principal", 
-    ["gemini-2.5-flash", "gemini-2.5-pro"],
-    help="Gemini 2.5 Flash es altamente recomendado para evitar límites de cuota (Rate Limits)."
-)
+# ==========================================
+# 3. CABECERA EJECUTIVA
+# ==========================================
+st.title("🏛️ Centro de Emprendimiento e Innovación - Misión 3")
+st.markdown("### **Dashboard de Indicadores Estratégicos y de Gestión**")
+st.markdown("**Reporte gerencial automatizado en tiempo real | Conectado a Google Sheets**")
+st.markdown("---")
 
-st.sidebar.markdown("### Estado de Infraestructura")
-if api_key_segura:
-    st.sidebar.success("🔒 Cloud Vault: Conectado")
-    api_key_final = api_key_segura
-else:
-    api_key_input = st.sidebar.text_input("Introducir Gemini API Key manualmente", type="password")
-    api_key_final = api_key_input
-    if not api_key_input:
-        st.sidebar.warning("⚠️ Requiere llave de acceso")
+# ==========================================
+# 4. SECCIÓN 1: ESTADO OPERATIVO DE PLATAFORMAS (DINÁMICO)
+# ==========================================
+st.subheader("🏢 Estado de la Unidad y Plataformas")
+col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(5)
 
-# 3. INTERFAZ GRÁFICA PRINCIPAL
-st.image("https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80", use_container_width=True)
-
-st.title("🧠 M3 Synthetic Board")
-st.subheader("Plataforma Multiagente de Soporte a Decisiones Estratégicas")
-
-col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
-col_kpi1.metric(label="Agentes Convocados", value="8 Expertos")
-col_kpi2.metric(label="Estructura de Datos", value="Agent Lake V1")
-col_kpi3.metric(label="Tolerancia a Cuotas", value="Gestión Dinámica")
-col_kpi4.metric(label="Límite por Agente", value="~150 palabras")
+with col_p1:
+    st.metric(label="Comité Plataforma", value=obtener_valor("Comité Plataforma", "Funcionando"), delta="✓ Estado")
+with col_p2:
+    st.metric(label="Dashboard Plataforma", value=obtener_valor("Dashboard Plataforma", "Funcionando"), delta="✓ Estado")
+with col_p3:
+    st.metric(label="Calculadora Valor", value=obtener_valor("Calculadora Valor", "Funcionando"), delta="✓ Estado")
+with col_p4:
+    st.metric(label="Consultoría Innovación", value=obtener_valor("Consultoría Innovación", "Proyecto"), delta="✓ Estado")
+with col_p5:
+    st.metric(label="Curso E&I Transversal", value=obtener_valor("Curso E&I Transversal", "Proyecto"), delta="✓ Estado")
 
 st.markdown("---")
 
-st.markdown("### 📝 Caso de Negocio o Desafío Institucional")
-caso_humano = st.text_area(
-    "Instrucción: Ingrese la propuesta o el problema técnico que el comité sintético debe analizar, contrastar y documentar.",
-    value="Evaluar si Misión 3 debe lanzar un reto de innovación abierta para mejorar la gestión de residuos en una municipalidad de Lima. Preparar recomendación, riesgos, aliados, campaña y plan operativo.",
-    height=120,
-    label_visibility="collapsed"
+# ==========================================
+# 5. SECCIÓN 2: PIPELINE DE EMPRENDIMIENTO Y VINCULACIÓN (DINÁMICO)
+# ==========================================
+col_izq, col_der = st.columns([1.2, 1])
+
+with col_izq:
+    st.subheader("🚀 Embudo del Emprendedor (E&I)")
+    
+    # Extraemos los participantes directo de la columna 'Valor' del Excel
+    pre_inc = pd.to_numeric(obtener_valor("Pre-incubación", 60), errors='coerce')
+    inc = pd.to_numeric(obtener_valor("Incubación", 25), errors='coerce')
+    aceleracion = pd.to_numeric(obtener_valor("Aceleración", 0), errors='coerce')
+
+    fig_embudo = go.Figure(go.Funnel(
+        y=['Pre-incubación', 'Incubación', 'Aceleración'],
+        x=[pre_inc, inc, aceleracion],
+        textinfo="value+percent initial",
+        marker={
+            "color": ["#0f172a", "#334155", "#64748b"],
+            "line": {"width": 1, "color": "#cbd5e1"}
+        },
+        textfont=dict(color="#ffffff", size=12)
+    ))
+    fig_embudo.update_layout(
+        template="plotly_white",
+        margin=dict(l=120, r=40, t=20, b=20), 
+        height=380,
+        plot_bgcolor='#ffffff',
+        paper_bgcolor='#ffffff',
+        font=dict(color="#000000", size=13)
+    )
+    fig_embudo.update_yaxes(tickfont=dict(color="#000000", size=13, family="Arial, sans-serif"))
+    st.plotly_chart(fig_embudo, use_container_width=True)
+
+with col_der:
+    st.subheader("🤝 Ecosistema de Vinculación (V&E)")
+    
+    # Filtramos la categoría V&E directamente de la tabla Excel
+    df_ve = df[df['Categoria'] == 'V&E'].copy()
+    df_ve['Valor'] = pd.to_numeric(df_ve['Valor'], errors='coerce')
+    
+    # Si por algún motivo el filtro está vacío, usa los datos de respaldo
+    if df_ve.empty:
+        df_ve = pd.DataFrame({
+            'Item': ['Universidades', 'Incubadoras', 'Cámaras', 'Asociaciones', 'Instituciones'],
+            'Valor': [20, 20, 19, 6, 4]
+        })
+    
+    fig_pie = px.pie(
+        df_ve, 
+        values='Valor', 
+        names='Item',
+        color_discrete_sequence=['#0f172a', '#1e293b', '#475569', '#94a3b8', '#cbd5e1'],
+        template="plotly_white"
+    )
+    fig_pie.update_layout(
+        margin=dict(l=20, r=20, t=20, b=20), 
+        height=380,
+        plot_bgcolor='#ffffff',
+        paper_bgcolor='#ffffff',
+        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5, font=dict(color="#000000", size=11))
+    )
+    st.plotly_chart(fig_pie, use_container_width=True)
+
+st.markdown("---")
+
+# ==========================================
+# 6. SECCIÓN 3: RETOS, EVENTOS Y MENTORES (DINÁMICO)
+# ==========================================
+col_r1, col_r2, col_r3 = st.columns(3)
+
+with col_r1:
+    st.subheader("🎯 Innovación Abierta y Retos")
+    st.info("**Retos Territoriales Activos:**\n* Miraflores\n* Callao Tech")
+    st.metric(label="Innovación Abierta EU (Participantes)", value=obtener_valor("Innovación Abierta EU", "1"))
+    st.metric(label="Polinización (Participantes)", value=obtener_valor("Polinización", "1"))
+
+with col_r2:
+    st.subheader("📅 Eventos Internacionales EULAC")
+    datos_eventos = {
+        'Sede / Evento': ['EULAC LIMA', 'EULAC CIX', 'EULAC AQP'],
+        'Aforo Alcanzado': [obtener_valor("EULAC LIM", "120 Pax"), obtener_valor("EULAC CIX", "120 Pax"), obtener_valor("EULAC AQP", "120 Pax")]
+    }
+    st.table(pd.DataFrame(datos_eventos))
+
+with col_r3:
+    st.subheader("🧠 Capital Intelectual")
+    st.metric(label="Red Global de Mentores", value=obtener_valor("Mentores", "120 Pax"), delta="Estrategas")
+
+st.markdown("---")
+
+# ==========================================
+# 7. SECCIÓN 4: ANALÍTICA DIGITAL Y REDES (DINÁMICO)
+# ==========================================
+st.subheader("🌐 Visitas a Plataformas vs. Comunidad Digital")
+col_v1, col_v2 = st.columns(2)
+
+with col_v1:
+    # Filtramos las visitas de plataformas directamente desde el Excel
+    df_visitas = df[df['Categoria'] == 'VISITAS'].copy()
+    df_visitas['Valor'] = pd.to_numeric(df_visitas['Valor'], errors='coerce')
+    df_visitas = df_visitas.dropna(subset=['Valor']).sort_values(by='Valor')
+    
+    if df_visitas.empty:
+        df_visitas = pd.DataFrame({
+            'Item': ['ATIPAQ', 'Mentores', 'Miraflores', 'Pre-incubación', 'Incubación', 'Callao Tech'],
+            'Valor': [243, 114, 64, 60, 25, 7]
+        }).sort_values(by='Valor')
+    
+    fig_visitas = px.bar(
+        df_visitas, 
+        x='Valor', 
+        y='Item', 
+        orientation='h',
+        title='Volumen de Tráfico y Participación por Canal',
+        color_discrete_sequence=['#0f172a'],
+        template="plotly_white"
+    )
+    fig_visitas.update_layout(plot_bgcolor='#ffffff', paper_bgcolor='#ffffff', height=400, font=dict(color="#000000"))
+    fig_visitas.update_xaxes(title_text="Interacciones", tickfont=dict(color="#000000"), showgrid=True, gridcolor="#e2e8f0")
+    fig_visitas.update_yaxes(title_text="Canal", tickfont=dict(color="#000000"))
+    st.plotly_chart(fig_visitas, use_container_width=True)
+
+with col_v2:
+    # Filtramos las redes sociales directamente desde el Excel
+    df_redes = df[df['Categoria'] == 'REDES'].copy()
+    df_redes['Valor'] = pd.to_numeric(df_redes['Valor'], errors='coerce')
+    df_redes = df_redes.dropna(subset=['Valor']).sort_values(by='Valor', ascending=False)
+    
+    if df_redes.empty:
+        df_redes = pd.DataFrame({
+            'Item': ['TikTok', 'Instagram', 'Facebook', 'LinkedIn', 'YouTube'],
+            'Valor': [3000, 2000, 2000, 1000, 200]
+        })
+    
+    fig_redes = px.bar(
+        df_redes,
+        x='Item',
+        y='Valor',
+        title='Seguidores Totales en Canales Digitales',
+        color_discrete_sequence=['#475569'],
+        template="plotly_white"
+    )
+    fig_redes.update_layout(plot_bgcolor='#ffffff', paper_bgcolor='#ffffff', height=400, font=dict(color="#000000"))
+    fig_redes.update_xaxes(title_text="Red Social", tickfont=dict(color="#000000"))
+    fig_redes.update_yaxes(title_text="Miembros", tickfont=dict(color="#000000"), showgrid=True, gridcolor="#e2e8f0")
+    st.plotly_chart(fig_redes, use_container_width=True)
+
+# ==========================================
+# 8. PIE DE PÁGINA
+# ==========================================
+st.markdown("---")
+st.markdown(
+    "<center style='color: #000000; font-size: 14px; font-weight: 600;'> "
+    "© Misión 3 - Centro de Emprendimiento e Innovación | Universidad César Vallejo<br>"
+    "Infraestructura Cloud conectada automáticamente mediante canales analíticos distribuidos."
+    "</center>", 
+    unsafe_allow_html=True
 )
-
-# FUNCIÓN DE LLAMADA CON SOPORTE COMPLETO PARA CONTROL DE ERRORES 429 Y 503
-def consultar_agente_api_resiliente(client, nombre_agente: str, entrada: str, contexto: str = "") -> str:
-    prompt_sistema = SYSTEM_PROMPTS.get(nombre_agente, "")
-    contenido = f"Caso a evaluar: {entrada}\n\n"
-    if contexto:
-        contenido += f"Contexto y deliberación previa del comité:\n{contexto}"
-        
-    intentos_maximos = 3
-    for intento in range(intentos_maximos):
-        try:
-            response = client.models.generate_content(
-                model=model_choice,
-                contents=contenido,
-                config=types.GenerateContentConfig(
-                    system_instruction=prompt_sistema,
-                    temperature=0.2,
-                ),
-            )
-            return response.text
-        except Exception as e:
-            error_msg = str(e).upper()
-            # Si el error es por agotamiento de cuota (429) o saturación (503), pausamos la ejecución
-            if "RESOURCE_EXHAUSTED" in error_msg or "429" in error_msg or "503" in error_msg:
-                if intento < intentos_maximos - 1:
-                    time.sleep(15)  # Pausa de seguridad para liberar la cuota por minuto de Google
-                    continue
-            raise e
-
-# CONTROL DE EJECUCIÓN
-if st.button("🚀 INICIAR DELIBERACIÓN ESTRATÉGICA", use_container_width=True):
-    if not api_key_final:
-        st.error("❌ Acción bloqueada: No se detecta una clave API válida para conectar con los agentes.")
-    else:
-        try:
-            client = genai.Client(api_key=api_key_final)
-            
-            with st.status("🛸 Sincronizando Agent Lake y ejecutando consultas virtuales...", expanded=True) as status:
-                
-                st.write("🌐 `[Agente 1/7]` **Ecosistemas** analizando el impacto territorial...")
-                op_ecosistemas = consultar_agente_api_resiliente(client, "ExpertoEcosistemas", caso_humano)
-                time.sleep(1.0)
-                
-                st.write("🔬 `[Agente 2/7]` **Innovación** tasando el grado de novedad tecnológica...")
-                op_innovacion = consultar_agente_api_resiliente(client, "ExpertoInnovacion", caso_humano)
-                time.sleep(1.0)
-                
-                st.write("📈 `[Agente 3/7]` **Emprendimiento** evaluando el encaje problema-solución...")
-                op_emprendimiento = consultar_agente_api_resiliente(client, "ExpertoEmprendimiento", caso_humano)
-                time.sleep(1.0)
-                
-                st.write("🏛️ `[Agente 4/7]` **Vinculación U-E** mapeando laboratorios...")
-                op_vinculacion = consultar_agente_api_resiliente(client, "ExpertoVinculacion", caso_humano)
-                time.sleep(1.0)
-                
-                st.write("📋 `[Agente 5/7]` **Concursos** estructurando bases de postulación...")
-                op_concursos = consultar_agente_api_resiliente(client, "ExpertoConcursos", caso_humano)
-                time.sleep(1.0)
-                
-                st.write("📢 `[Agente 6/7]` **Comunicaciones** diseñando la narrativa estratégica...")
-                op_comunicaciones = consultar_agente_api_resiliente(client, "ExpertoComunicaciones", caso_humano)
-                time.sleep(1.0)
-                
-                st.write("⚙️ `[Agente 7/7]` **Automatización** modelando flujos digitales...")
-                op_automatizacion = consultar_agente_api_resiliente(client, "ExpertoAutomatizacion", caso_humano)
-                
-                # PAUSA DE CONTROL ESTRATÉGICA PARA EL ORQUESTADOR
-                st.write("⏳ `[Infraestructura]` Liberando cuota de tokens por minuto (RPM). Esperando 20 segundos antes del dictamen final...")
-                time.sleep(20.0) 
-                
-                st.write("✍️ `[Orquestador]` **Secretario General** consolidando consensos, riesgos y dictando acta final...")
-                
-                memoria_deliberacion = (
-                    f"### [Opinión] Experto en Ecosistemas\n{op_ecosistemas}\n\n"
-                    f"### [Opinión] Experto en Innovación\n{op_innovacion}\n\n"
-                    f"### [Opinión] Experto en Emprendimiento\n{op_emprendimiento}\n\n"
-                    f"### [Opinión] Experto en Vinculación\n{op_vinculacion}\n\n"
-                    f"### [Opinión] Experto en Concursos\n{op_concursos}\n\n"
-                    f"### [Opinión] Experto en Comunicaciones\n{op_comunicaciones}\n\n"
-                    f"### [Opinión] Experto en Automatización\n{op_automatizacion}\n\n"
-                )
-                
-                prompt_secretario = (
-                    f"Como Secretario General, procesa las opiniones de los 7 expertos sobre el caso '{caso_humano}'. "
-                    f"Genera el documento oficial 'Acta del Comité Directivo Sintético M3' en Markdown, estructurando de "
-                    f"forma estricta: Tema Evaluado, Agentes Participantes, Recomendaciones Clave consolidadas, "
-                    f"Consensos Detectados, Disensos, Riesgos Identificados, Decisión Sugerida y un Plan de Acción Operativo paso a paso.\n\n"
-                    f"Deliberación del comité:\n{memoria_deliberacion}"
-                )
-                
-                acta_final = consultar_agente_api_resiliente(client, "SecretarioGeneral", prompt_secretario)
-                status.update(label="⚡ Consolidación finalizada con éxito.", state="complete", expanded=False)
-            
-            st.session_state["acta_premium"] = acta_final
-            st.session_state["lake_premium"] = memoria_deliberacion
-
-        except Exception as e:
-            st.error(f"Fallo en la comunicación agéntica por límites de cuota: {e}. Por favor, espere un momento e intente presionar el botón de nuevo.")
-
-# 4. ENTREGA DE RESULTADOS DE ALTA FIDELIDAD
-if "acta_premium" in st.session_state:
-    st.markdown("### 🏆 Documento de Salida del Comité")
-    
-    tab_acta, tab_trazabilidad = st.tabs(["📜 Acta Ejecutiva Final", "🔍 Auditoría de Agent Lake"])
-    
-    with tab_acta:
-        with st.container(border=True):
-            st.markdown(st.session_state["acta_premium"])
-            
-        st.download_button(
-            label="📥 EXPORTAR ACTA OFICIAL (MARKDOWN)",
-            data=st.session_state["acta_premium"],
-            file_name="acta_comite_m3.md",
-            mime="text/markdown",
-            use_container_width=True
-        )
-        
-    with tab_trazabilidad:
-        st.info("La siguiente información es el registro auditable de lo que cada experto opinó de forma independiente.")
-        st.markdown(st.session_state["lake_premium"])
