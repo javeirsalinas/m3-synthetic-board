@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import re
 from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
@@ -38,62 +37,53 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CONEXIÓN EN TIEMPO REAL A GOOGLE SHEETS
+# 2. CONEXIÓN DIRECTA A LA PESTAÑA "Hoja 1"
 # ==========================================
-@st.cache_data(ttl="5s") # Actualización rápida en 5 segundos
+@st.cache_data(ttl="5s") 
 def cargar_datos():
     conn = st.connection("gsheets", type=GSheetsConnection)
     url_directa = "https://docs.google.com/spreadsheets/d/1aEIyDmHuHxzei8IRqMFKYDIZ1Hc3lvQoU6odzyuiL9M/edit?usp=sharing"
-    return conn.read(spreadsheet=url_directa)
+    # SOLUCIÓN CLAVE: Apuntamos exactamente al nombre de tu pestaña 'Hoja 1'
+    return conn.read(spreadsheet=url_directa, worksheet="Hoja 1")
 
 try:
     df = cargar_datos()
+    # Limpieza de espacios en blanco en las cabeceras y celdas
     df.columns = df.columns.str.strip()
-    # Limpieza base para textos generales
-    df['item_minuscula'] = df['Item'].astype(str).str.strip().str.lower()
+    df['Categoria'] = df['Categoria'].astype(str).str.strip().str.lower()
+    df['Item'] = df['Item'].astype(str).str.strip()
+    df['Valor_Num'] = pd.to_numeric(df['Valor'], errors='coerce')
 except Exception as e:
-    st.error("⚠️ Error al procesar la estructura de Google Sheets")
+    st.error("⚠️ Error al procesar la pestaña 'Hoja 1' de Google Sheets")
     st.stop()
 
-# NUEVO MOTOR REGEX: Extrae los dígitos numéricos de celdas como "miembrosLinkedin829"
-def extraer_numero_de_texto(palabra_clave, valor_defecto):
+# Funciones de extracción directa basadas en tu captura
+def extraer_valor_kpi(item_buscado, defecto):
     try:
-        # Buscamos la fila que contiene la palabra clave (ej: 'linkedin')
-        filtro = df[df['item_minuscula'].str.contains(palabra_clave.lower(), na=False)]
-        if not filtro.empty:
-            texto_celda = str(filtro.iloc[0]['Item'])
-            # Expresión regular para extraer todos los números continuos del texto
-            numeros_encontrados = re.findall(r'\d+', texto_celda)
-            if numeros_encontrados:
-                return int(numeros_encontrados[0])
-            
-            # Si no hay números en Item, intentamos leer la columna Valor por si acaso
-            val_col = pd.to_numeric(filtro.iloc[0]['Valor'], errors='coerce')
-            if not pd.isna(val_col):
-                return int(val_col)
-        return valor_defecto
+        sub_df = df[df['Item'].str.lower() == item_buscado.lower()]
+        if not sub_df.empty:
+            return str(sub_df.iloc[0]['Valor'])
+        return defecto
     except:
-        return valor_defecto
+        return defecto
 
-def buscar_texto_por_palabra(palabra, valor_defecto):
+def extraer_numero_kpi(item_buscado, defecto):
     try:
-        filtro = df[df['item_minuscula'].str.contains(palabra.lower(), na=False)]
-        if not filtro.empty:
-            # Si la columna Valor está vacía, mostramos el texto de la columna Item limpia
-            val_col = str(filtro.iloc[0]['Valor']).strip()
-            if val_col and val_col != "nan":
-                return val_col
-            return str(filtro.iloc[0]['Item'])
-        return valor_defecto
+        sub_df = df[df['Item'].str.lower() == item_buscado.lower()]
+        if not sub_df.empty:
+            val = sub_df.iloc[0]['Valor_Num']
+            if not pd.isna(val):
+                return int(val)
+        return defecto
     except:
-        return valor_defecto
+        return defecto
 
 # ==========================================
 # 3. CABECERA EJECUTIVA
 # ==========================================
 st.title("🏛️ Centro de Emprendimiento e Innovación - Misión 3")
 st.markdown("### **Dashboard de Indicadores Estratégicos y de Gestión**")
-st.markdown("**Reporte gerencial automatizado en tiempo real | Conectado a Google Sheets**")
+st.markdown("**Reporte gerencial conectado en tiempo real con 'Hoja 1'**")
 st.markdown("---")
 
 # ==========================================
@@ -103,15 +93,15 @@ st.subheader("🏢 Estado de la Unidad y Plataformas")
 col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(5)
 
 with col_p1:
-    st.metric(label="Comité Plataforma", value=buscar_texto_por_palabra("comité", "Funcionando"), delta="✓ Estado")
+    st.metric(label="Comité Plataforma", value=extraer_valor_kpi("Proyecto Comite", "Funcionando"), delta="✓ Estado")
 with col_p2:
-    st.metric(label="Dashboard Plataforma", value=buscar_texto_por_palabra("dashboard", "Funcionando"), delta="✓ Estado")
+    st.metric(label="Dashboard Plataforma", value=extraer_valor_kpi("Dashboard", "Proceso"), delta="✓ Estado")
 with col_p3:
-    st.metric(label="Calculadora Valor", value=buscar_texto_por_palabra("calculadora", "Funcionando"), delta="✓ Estado")
+    st.metric(label="Calculadora Valor", value=extraer_valor_kpi("Calculadora Valor", "Funcionando"), delta="✓ Estado")
 with col_p4:
-    st.metric(label="Consultoría Innovación", value=buscar_texto_por_palabra("consultoría", "Proyecto"), delta="✓ Estado")
+    st.metric(label="Consultoría Innovación", value=extraer_valor_kpi("Consultoria Innovacion", "Proceso"), delta="✓ Estado")
 with col_p5:
-    st.metric(label="Curso E&I Transversal", value=buscar_texto_por_palabra("curso", "Proyecto"), delta="✓ Estado")
+    st.metric(label="Curso E&I Transversal", value=extraer_valor_kpi("Curso E&I Transversal", "Proceso"), delta="✓ Estado")
 
 st.markdown("---")
 
@@ -123,9 +113,10 @@ col_izq, col_der = st.columns([1.2, 1])
 with col_izq:
     st.subheader("🚀 Embudo del Emprendedor (E&I)")
     
-    pre_inc = extraer_numero_de_texto("pre", 60)
-    inc = extraer_numero_de_texto("incubación", 25)
-    aceleracion = extraer_numero_de_texto("aceleración", 0)
+    # Extrae los participantes directo de las filas 8, 9 y 10 de tu captura
+    pre_inc = extraer_numero_kpi("Preincubacion", 60)
+    inc = extraer_numero_kpi("Incubacion", 25)
+    aceleracion = extraer_numero_kpi("Aceleracion", 0)
 
     fig_embudo = go.Figure(go.Funnel(
         y=['Pre-incubación', 'Incubación', 'Aceleración'],
@@ -140,7 +131,7 @@ with col_izq:
     fig_embudo.update_layout(
         template="plotly_white",
         margin=dict(l=120, r=40, t=20, b=20), 
-        height=380,
+        height=350,
         plot_bgcolor='#ffffff',
         paper_bgcolor='#ffffff',
         font=dict(color="#000000", size=13)
@@ -151,27 +142,27 @@ with col_izq:
 with col_der:
     st.subheader("🤝 Ecosistema de Vinculación (V&E)")
     
-    u = extraer_numero_de_texto("universidades", 20)
-    i = extraer_numero_de_texto("incubadoras", 20)
-    c = extraer_numero_de_texto("cámaras", 19)
-    a = extraer_numero_de_texto("asociaciones", 6)
-    ins = extraer_numero_de_texto("instituciones", 4)
+    # Mapea dinámicamente las filas de la categoría 'entidades' (filas 15 a 18)
+    df_ve = df[df['Categoria'] == 'entidades'].copy()
     
-    df_ve_dinamico = pd.DataFrame({
-        'Item': ['Universidades', 'Incubadoras', 'Cámaras', 'Asociaciones', 'Instituciones'],
-        'Valor': [u, i, c, a, ins]
-    })
-    
-    fig_pie = px.pie(
-        df_ve_dinamico, 
-        values='Valor', 
-        names='Item',
-        color_discrete_sequence=['#0f172a', '#1e293b', '#475569', '#94a3b8', '#cbd5e1'],
-        template="plotly_white"
-    )
+    if not df_ve.empty:
+        fig_pie = px.pie(
+            df_ve, 
+            values='Valor_Num', 
+            names='Item',
+            color_discrete_sequence=['#0f172a', '#1e293b', '#475569', '#94a3b8', '#cbd5e1'],
+            template="plotly_white"
+        )
+    else:
+        fig_pie = px.pie(
+            names=['Camaras', 'Universidades', 'Asociaciones', 'Instituciones'],
+            values=[20, 30, 6, 4],
+            color_discrete_sequence=['#0f172a', '#1e293b', '#475569', '#94a3b8', '#cbd5e1'],
+            template="plotly_white"
+        )
     fig_pie.update_layout(
         margin=dict(l=20, r=20, t=20, b=20), 
-        height=380,
+        height=350,
         plot_bgcolor='#ffffff',
         paper_bgcolor='#ffffff',
         legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5, font=dict(color="#000000", size=11))
@@ -181,83 +172,82 @@ with col_der:
 st.markdown("---")
 
 # ==========================================
-# 6. SECCIÓN 3: RETOS, EVENTOS Y MENTORES
+# 6. SECCIÓN 3: RETOS Y EVENTOS
 # ==========================================
 col_r1, col_r2, col_r3 = st.columns(3)
 
 with col_r1:
-    st.subheader("🎯 Innovación Abierta y Retos")
-    st.info("**Retos Territoriales Activos:**\n* Miraflores\n* Callao Tech")
-    st.metric(label="Innovación Abierta EU (Participantes)", value=extraer_numero_de_texto("eu", 1))
-    st.metric(label="Polinización (Participantes)", value=extraer_numero_de_texto("polinización", 1))
+    st.subheader("🎯 Innovación Abierta")
+    st.info(f"**Retos Territoriales Activos:**\n* {extraer_valor_kpi('Innovacion Abierta', 'Miraflores')}")
+    st.metric(label="Polinización (Participantes)", value=extraer_numero_kpi("Polinización", 1))
 
 with col_r2:
     st.subheader("📅 Eventos Internacionales EULAC")
     datos_eventos = {
-        'Sede / Evento': ['EULAC LIMA', 'EULAC CIX', 'EULAC AQP'],
+        'Sede / Evento': ['EULAC LIMA', 'EULAC CIX', 'EULAC AQP', 'Mentores'],
         'Aforo Alcanzado': [
-            str(extraer_numero_de_texto("lim", 120)) + " Pax", 
-            str(extraer_numero_de_texto("cix", 120)) + " Pax", 
-            str(extraer_numero_de_texto("aqp", 120)) + " Pax"
+            extraer_valor_kpi("EULAC LIM", "120 Pax"), 
+            extraer_valor_kpi("EULAC CIX", "120 Pax"), 
+            extraer_valor_kpi("EULAC AQP", "120 Pax"),
+            extraer_valor_kpi("Mentores", "120 Pax")
         ]
     }
     st.table(pd.DataFrame(datos_eventos))
 
 with col_r3:
-    st.subheader("🧠 Capital Intelectual")
-    st.metric(label="Red Global de Mentores", value=str(extraer_numero_de_texto("mentores", 120)) + " Profesionales", delta="Estrategas")
+    st.subheader("🧠 Viajes e Impacto")
+    st.metric(label="Visitas Campus", value=extraer_numero_kpi("Visitas Campus", 12))
 
 st.markdown("---")
 
 # ==========================================
-# 7. SECCIÓN 4: ANALÍTICA DIGITAL Y REDES (EXTRACCIÓN INTELIGENTE)
+# 7. SECCIÓN 4: ANALÍTICA DIGITAL (REDES SOCIALES CORREGIDAS)
 # ==========================================
 st.subheader("🌐 Visitas a Plataformas vs. Comunidad Digital")
 col_v1, col_v2 = st.columns(2)
 
 with col_v1:
-    items_v = ['ATIPAQ', 'Mentores', 'Miraflores', 'Pre-incubación', 'Incubación', 'Callao Tech']
+    # Mapeo de visitas reales de tus filas de participantes (ATIPAQ, Callao Tech, Miraflores)
+    items_v = ['ATIPAQ', 'Miraflores', 'Mentores', 'Callao Tech']
     vals_v = [
-        extraer_numero_de_texto("atipaq", 243), 
-        extraer_numero_de_texto("mentores", 114), 
-        extraer_numero_de_texto("miraflores", 64), 
-        pre_inc, 
-        inc, 
-        extraer_numero_de_texto("callao", 7)
+        extraer_numero_kpi("ATIPAQ", 268), 
+        extraer_numero_kpi("Miraflores", 64), 
+        extraer_numero_kpi("Mentores", 113),
+        extraer_numero_kpi("Callao Tech", 8)
     ]
-    df_v_mock = pd.DataFrame({'Item': items_v, 'Valor': vals_v}).sort_values(by='Valor')
-    fig_visitas = px.bar(df_v_mock, x='Valor', y='Item', orientation='h', template="plotly_white", color_discrete_sequence=['#0f172a'])
-        
-    fig_visitas.update_layout(title='Volumen de Tráfico y Participación por Canal', plot_bgcolor='#ffffff', paper_bgcolor='#ffffff', height=400, font=dict(color="#000000"))
+    df_visitas_dinamico = pd.DataFrame({'Item': items_v, 'Valor': vals_v}).sort_values(by='Valor')
+    
+    fig_visitas = px.bar(df_visitas_dinamico, x='Valor', y='Item', orientation='h', template="plotly_white", color_discrete_sequence=['#0f172a'])
+    fig_visitas.update_layout(title='Volumen de Tráfico por Canal', plot_bgcolor='#ffffff', paper_bgcolor='#ffffff', height=380, font=dict(color="#000000"))
     fig_visitas.update_xaxes(title_text="Interacciones", tickfont=dict(color="#000000"), showgrid=True, gridcolor="#e2e8f0")
     fig_visitas.update_yaxes(title_text="Canal", tickfont=dict(color="#000000"))
     st.plotly_chart(fig_visitas, use_container_width=True)
 
 with col_v2:
-    # PROCESAMIENTO CON EXTRACCIÓN AUTOMÁTICA DE DÍGITOS
-    redes_lista = ['TikTok', 'Instagram', 'Facebook', 'LinkedIn', 'YouTube']
-    valores_redes = [
-        extraer_numero_de_texto("tiktok", 7211),
-        extraer_numero_de_texto("instagram", 2146),
-        extraer_numero_de_texto("facebook", 386),
-        extraer_numero_de_texto("linkedin", 829),
-        extraer_numero_de_texto("youtube", 53)
-    ]
+    # FILTRADO EXACTO BASADO EN TU CAPTURA (FILAS 30 A 34)
+    df_redes = df[df['Categoria'] == 'miembros'].copy()
     
-    df_redes_lista = pd.DataFrame({
-        'Red Social': redes_lista,
-        'Miembros': valores_redes
-    }).sort_values(by='Miembros', ascending=False)
-    
-    fig_redes = px.bar(
-        df_redes_lista,
-        x='Red Social',
-        y='Miembros',
-        title='Seguidores Totales en Canales Digitales',
-        color_discrete_sequence=['#475569'],
-        template="plotly_white"
-    )
-    fig_redes.update_layout(plot_bgcolor='#ffffff', paper_bgcolor='#ffffff', height=400, font=dict(color="#000000"))
+    if not df_redes.empty and df_redes['Valor_Num'].sum() > 0:
+        df_redes = df_redes.dropna(subset=['Valor_Num']).sort_values(by='Valor_Num', ascending=False)
+        fig_redes = px.bar(
+            df_redes,
+            x='Item',
+            y='Valor_Num',
+            title='Seguidores Totales en Canales Digitales (Datos de Hoja 1)',
+            color_discrete_sequence=['#475569'],
+            template="plotly_white"
+        )
+    else:
+        # Respaldo con tus datos exactos por si acaso
+        fig_redes = px.bar(
+            x=['TikTok', 'Instagram', 'Linkedin', 'Facebook', 'YouTube'],
+            y=[7211, 2146, 829, 386, 53],
+            title='Seguidores Totales en Canales Digitales (Respaldo)',
+            color_discrete_sequence=['#475569'],
+            template="plotly_white"
+        )
+        
+    fig_redes.update_layout(plot_bgcolor='#ffffff', paper_bgcolor='#ffffff', height=380, font=dict(color="#000000"))
     fig_redes.update_xaxes(title_text="Red Social", tickfont=dict(color="#000000"))
     fig_redes.update_yaxes(title_text="Miembros", tickfont=dict(color="#000000"), showgrid=True, gridcolor="#e2e8f0")
     st.plotly_chart(fig_redes, use_container_width=True)
@@ -269,7 +259,7 @@ st.markdown("---")
 st.markdown(
     "<center style='color: #000000; font-size: 14px; font-weight: 600;'> "
     "© Misión 3 - Centro de Emprendimiento e Innovación | Universidad César Vallejo<br>"
-    "Infraestructura Cloud conectada automáticamente mediante canales analíticos distribuidos."
+    "Sincronizado con la pestaña 'Hoja 1' del Google Sheet Institucional."
     "</center>", 
     unsafe_allow_html=True
 )
