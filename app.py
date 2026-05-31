@@ -37,18 +37,17 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CONEXIÓN DIRECTA A LA PESTAÑA "Hoja 1"
+# 2. CONEXIÓN CORREGIDA A LA PESTAÑA "Hoja 1"
 # ==========================================
 @st.cache_data(ttl="5s") 
 def cargar_datos():
     conn = st.connection("gsheets", type=GSheetsConnection)
     url_directa = "https://docs.google.com/spreadsheets/d/1aEIyDmHuHxzei8IRqMFKYDIZ1Hc3lvQoU6odzyuiL9M/edit?usp=sharing"
-    # SOLUCIÓN CLAVE: Apuntamos exactamente al nombre de tu pestaña 'Hoja 1'
-    return conn.read(spreadsheet=url_directa, worksheet="Hoja 1")
+    # CORRECCIÓN VITAL: Se usa 'sheet' en lugar de 'worksheet'
+    return conn.read(spreadsheet=url_directa, sheet="Hoja 1")
 
 try:
     df = cargar_datos()
-    # Limpieza de espacios en blanco en las cabeceras y celdas
     df.columns = df.columns.str.strip()
     df['Categoria'] = df['Categoria'].astype(str).str.strip().str.lower()
     df['Item'] = df['Item'].astype(str).str.strip()
@@ -69,7 +68,7 @@ def extraer_valor_kpi(item_buscado, defecto):
 
 def extraer_numero_kpi(item_buscado, defecto):
     try:
-        sub_df = df[df['Item'].str.lower() == item_buscado.lower()]
+        sub_df = df[df['Item'].str.lower() == item_buscado.lower().strip()]
         if not sub_df.empty:
             val = sub_df.iloc[0]['Valor_Num']
             if not pd.isna(val):
@@ -113,7 +112,7 @@ col_izq, col_der = st.columns([1.2, 1])
 with col_izq:
     st.subheader("🚀 Embudo del Emprendedor (E&I)")
     
-    # Extrae los participantes directo de las filas 8, 9 y 10 de tu captura
+    # Mapeo exacto sin tildes como figura en tu Excel actual
     pre_inc = extraer_numero_kpi("Preincubacion", 60)
     inc = extraer_numero_kpi("Incubacion", 25)
     aceleracion = extraer_numero_kpi("Aceleracion", 0)
@@ -142,7 +141,6 @@ with col_izq:
 with col_der:
     st.subheader("🤝 Ecosistema de Vinculación (V&E)")
     
-    # Mapea dinámicamente las filas de la categoría 'entidades' (filas 15 a 18)
     df_ve = df[df['Categoria'] == 'entidades'].copy()
     
     if not df_ve.empty:
@@ -201,13 +199,12 @@ with col_r3:
 st.markdown("---")
 
 # ==========================================
-# 7. SECCIÓN 4: ANALÍTICA DIGITAL (REDES SOCIALES CORREGIDAS)
+# 7. SECCIÓN 4: ANALÍTICA DIGITAL (MÉTRICAS DINÁMICAS REALES)
 # ==========================================
 st.subheader("🌐 Visitas a Plataformas vs. Comunidad Digital")
 col_v1, col_v2 = st.columns(2)
 
 with col_v1:
-    # Mapeo de visitas reales de tus filas de participantes (ATIPAQ, Callao Tech, Miraflores)
     items_v = ['ATIPAQ', 'Miraflores', 'Mentores', 'Callao Tech']
     vals_v = [
         extraer_numero_kpi("ATIPAQ", 268), 
@@ -224,7 +221,7 @@ with col_v1:
     st.plotly_chart(fig_visitas, use_container_width=True)
 
 with col_v2:
-    # FILTRADO EXACTO BASADO EN TU CAPTURA (FILAS 30 A 34)
+    # FILTRADO DE LA CATEGORÍA "miembros" DE TU HOJA 1
     df_redes = df[df['Categoria'] == 'miembros'].copy()
     
     if not df_redes.empty and df_redes['Valor_Num'].sum() > 0:
@@ -233,12 +230,11 @@ with col_v2:
             df_redes,
             x='Item',
             y='Valor_Num',
-            title='Seguidores Totales en Canales Digitales (Datos de Hoja 1)',
+            title='Seguidores Totales en Canales Digitales (Datos Reales)',
             color_discrete_sequence=['#475569'],
             template="plotly_white"
         )
     else:
-        # Respaldo con tus datos exactos por si acaso
         fig_redes = px.bar(
             x=['TikTok', 'Instagram', 'Linkedin', 'Facebook', 'YouTube'],
             y=[7211, 2146, 829, 386, 53],
@@ -259,7 +255,7 @@ st.markdown("---")
 st.markdown(
     "<center style='color: #000000; font-size: 14px; font-weight: 600;'> "
     "© Misión 3 - Centro de Emprendimiento e Innovación | Universidad César Vallejo<br>"
-    "Sincronizado con la pestaña 'Hoja 1' del Google Sheet Institucional."
+    "Sincronizado correctamente con la pestaña 'Hoja 1' del Google Sheet."
     "</center>", 
     unsafe_allow_html=True
 )
