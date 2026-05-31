@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import re
 from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
@@ -52,22 +53,22 @@ def cargar_datos():
 
 try:
     df = cargar_datos()
+    # Limpieza estricta de nombres de columnas
     df.columns = df.columns.str.strip()
     
-    # Unificamos todo a texto para búsquedas flexibles por filas
+    # Todo a string para evitar errores por tipos mezclados
     df['Item_String'] = df['Item'].astype(str).str.strip().str.lower()
-    df['Categoria_String'] = df['Categoria'].astype(str).str.strip().str.lower()
-    df['Valor_Num'] = pd.to_numeric(df['Valor'], errors='coerce')
+    df['Valor_String'] = df['Valor'].astype(str).str.strip()
 except Exception as e:
     st.error("⚠️ Error al procesar la pestaña 'Hoja 1' de Google Sheets")
     st.stop()
 
-# Funciones globales de extracción por palabra clave en la fila
+# Funciones globales que extraen texto o limpian números dinámicamente
 def extraer_valor_kpi(palabra, defecto):
     try:
         sub_df = df[df['Item_String'].str.contains(palabra.lower(), na=False)]
         if not sub_df.empty:
-            return str(sub_df.iloc[0]['Valor'])
+            return str(sub_df.iloc[0]['Valor_String'])
         return defecto
     except:
         return defecto
@@ -76,12 +77,18 @@ def extraer_numero_kpi(palabra, defecto):
     try:
         sub_df = df[df['Item_String'].str.contains(palabra.lower(), na=False)]
         if not sub_df.empty:
-            val = sub_df.iloc[0]['Valor_Num']
-            if not pd.isna(val):
-                return int(val)
+            val_raw = str(sub_df.iloc[0]['Valor_String'])
+            # Filtramos solo los dígitos numéricos usando expresiones regulares
+            solo_numeros = re.sub(r'[^\d]', '', val_raw)
+            if solo_numeros:
+                return int(solo_numeros)
         return defecto
     except:
         return defecto
+
+# Muestra la tabla original arriba para auditoría visual directa
+st.sidebar.markdown("### 📊 Vista previa de los datos leídos:")
+st.sidebar.dataframe(df[['Categoria', 'Item', 'Valor']])
 
 # ==========================================
 # 3. CABECERA EJECUTIVA
@@ -146,7 +153,6 @@ with col_izq:
 with col_der:
     st.subheader("🤝 Ecosistema de Vinculación (V&E)")
     
-    # Extraemos las entidades buscando por texto dinámico en lugar de categorías fijas
     u = extraer_numero_kpi("universidades", 30)
     i = extraer_numero_kpi("incubadoras", 20)
     c = extraer_numero_kpi("camaras", 20)
@@ -206,7 +212,7 @@ with col_r3:
 st.markdown("---")
 
 # ==========================================
-# 7. SECCIÓN 4: ANALÍTICA DIGITAL (BÚSQUEDA DIRECTA POR FILA)
+# 7. SECCIÓN 4: ANALÍTICA DIGITAL (EXTRACCIÓN POR FILTRADO DE TEXTO)
 # ==========================================
 st.subheader("🌐 Visitas a Plataformas vs. Comunidad Digital")
 col_v1, col_v2 = st.columns(2)
@@ -228,7 +234,7 @@ with col_v1:
     st.plotly_chart(fig_visitas, use_container_width=True)
 
 with col_v2:
-    # SOLUCIÓN DEFINITIVA: Armamos el DataFrame buscando individualmente las filas en tu columna 'Item'
+    # Extracción individual buscando la palabra clave dentro de tu columna 'Item'
     redes_lista = ['TikTok', 'Instagram', 'LinkedIn', 'Facebook', 'YouTube']
     valores_redes = [
         extraer_numero_kpi("tiktok", 7211),
@@ -247,7 +253,7 @@ with col_v2:
         df_redes_reales,
         x='Red Social',
         y='Miembros',
-        title='Seguidores Totales en Canales Digitales (Datos en Vivo)',
+        title='Seguidores Totales en Canales Digitales (Actualizado)',
         color_discrete_sequence=['#475569'],
         template="plotly_white"
     )
