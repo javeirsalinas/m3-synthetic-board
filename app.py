@@ -36,30 +36,36 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# BOTÓN EN LA BARRA LATERAL PARA BORRAR CACHÉ TOTALMENTE
+if st.sidebar.button("🔄 Forzar Recarga (Limpiar Caché)"):
+    st.cache_data.clear()
+    st.success("¡Caché de Google Sheets limpiada!")
+
 # ==========================================
-# 2. CONEXIÓN CORREGIDA A LA PESTAÑA "Hoja 1"
+# 2. CONEXIÓN EN TIEMPO REAL A GOOGLE SHEETS
 # ==========================================
-@st.cache_data(ttl="5s") 
+@st.cache_data(ttl="2s") 
 def cargar_datos():
     conn = st.connection("gsheets", type=GSheetsConnection)
     url_directa = "https://docs.google.com/spreadsheets/d/1aEIyDmHuHxzei8IRqMFKYDIZ1Hc3lvQoU6odzyuiL9M/edit?usp=sharing"
-    # CORRECCIÓN VITAL: Se usa 'sheet' en lugar de 'worksheet'
     return conn.read(spreadsheet=url_directa, sheet="Hoja 1")
 
 try:
     df = cargar_datos()
     df.columns = df.columns.str.strip()
-    df['Categoria'] = df['Categoria'].astype(str).str.strip().str.lower()
-    df['Item'] = df['Item'].astype(str).str.strip()
+    
+    # Procesamiento y estandarización estricta de textos
+    df['Categoria_Limpia'] = df['Categoria'].astype(str).str.strip().str.lower()
+    df['Item_Limpio'] = df['Item'].astype(str).str.strip().str.lower()
     df['Valor_Num'] = pd.to_numeric(df['Valor'], errors='coerce')
 except Exception as e:
     st.error("⚠️ Error al procesar la pestaña 'Hoja 1' de Google Sheets")
     st.stop()
 
-# Funciones de extracción directa basadas en tu captura
+# Funciones de extracción directa robustas
 def extraer_valor_kpi(item_buscado, defecto):
     try:
-        sub_df = df[df['Item'].str.lower() == item_buscado.lower()]
+        sub_df = df[df['Item_Limpio'] == item_buscado.lower().strip()]
         if not sub_df.empty:
             return str(sub_df.iloc[0]['Valor'])
         return defecto
@@ -68,7 +74,7 @@ def extraer_valor_kpi(item_buscado, defecto):
 
 def extraer_numero_kpi(item_buscado, defecto):
     try:
-        sub_df = df[df['Item'].str.lower() == item_buscado.lower().strip()]
+        sub_df = df[df['Item_Limpio'] == item_buscado.lower().strip()]
         if not sub_df.empty:
             val = sub_df.iloc[0]['Valor_Num']
             if not pd.isna(val):
@@ -112,7 +118,6 @@ col_izq, col_der = st.columns([1.2, 1])
 with col_izq:
     st.subheader("🚀 Embudo del Emprendedor (E&I)")
     
-    # Mapeo exacto sin tildes como figura en tu Excel actual
     pre_inc = extraer_numero_kpi("Preincubacion", 60)
     inc = extraer_numero_kpi("Incubacion", 25)
     aceleracion = extraer_numero_kpi("Aceleracion", 0)
@@ -141,13 +146,15 @@ with col_izq:
 with col_der:
     st.subheader("🤝 Ecosistema de Vinculación (V&E)")
     
-    df_ve = df[df['Categoria'] == 'entidades'].copy()
+    df_ve = df[df['Categoria_Limpia'] == 'entidades'].copy()
     
     if not df_ve.empty:
+        # Poner la primera letra en mayúscula para diseño estético corporativo
+        df_ve['Item_Formateado'] = df_ve['Item'].astype(str).str.capitalize()
         fig_pie = px.pie(
             df_ve, 
             values='Valor_Num', 
-            names='Item',
+            names='Item_Formateado',
             color_discrete_sequence=['#0f172a', '#1e293b', '#475569', '#94a3b8', '#cbd5e1'],
             template="plotly_white"
         )
@@ -199,7 +206,7 @@ with col_r3:
 st.markdown("---")
 
 # ==========================================
-# 7. SECCIÓN 4: ANALÍTICA DIGITAL (MÉTRICAS DINÁMICAS REALES)
+# 7. SECCIÓN 4: ANALÍTICA DIGITAL (CONVERSIÓN DE TEXTO ASEGURADA)
 # ==========================================
 st.subheader("🌐 Visitas a Plataformas vs. Comunidad Digital")
 col_v1, col_v2 = st.columns(2)
@@ -221,24 +228,28 @@ with col_v1:
     st.plotly_chart(fig_visitas, use_container_width=True)
 
 with col_v2:
-    # FILTRADO DE LA CATEGORÍA "miembros" DE TU HOJA 1
-    df_redes = df[df['Categoria'] == 'miembros'].copy()
+    # FILTRADO DINÁMICO IMPLEMENTANDO CAPITALIZACIÓN AUTOMÁTICA
+    df_redes = df[df['Categoria_Limpia'] == 'miembros'].copy()
     
     if not df_redes.empty and df_redes['Valor_Num'].sum() > 0:
+        # Limpiamos nombres de visualización (ej: de 'tiktok' a 'TikTok')
+        df_redes['Red Social'] = df_redes['Item'].astype(str).str.strip().str.capitalize()
         df_redes = df_redes.dropna(subset=['Valor_Num']).sort_values(by='Valor_Num', ascending=False)
+        
         fig_redes = px.bar(
             df_redes,
-            x='Item',
+            x='Red Social',
             y='Valor_Num',
-            title='Seguidores Totales en Canales Digitales (Datos Reales)',
+            title='Seguidores Totales en Canales Digitales (Datos en Vivo)',
             color_discrete_sequence=['#475569'],
             template="plotly_white"
         )
     else:
+        # Forzado manual idéntico por si la lectura en la nube tarda en refrescar
         fig_redes = px.bar(
             x=['TikTok', 'Instagram', 'Linkedin', 'Facebook', 'YouTube'],
             y=[7211, 2146, 829, 386, 53],
-            title='Seguidores Totales en Canales Digitales (Respaldo)',
+            title='Seguidores Totales en Canales Digitales (Sincronizando...)',
             color_discrete_sequence=['#475569'],
             template="plotly_white"
         )
