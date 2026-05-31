@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import re
 from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
@@ -47,26 +48,29 @@ def cargar_datos():
 
 try:
     df = cargar_datos()
-    # Limpieza rigurosa de las columnas de la hoja de cálculo
     df.columns = df.columns.str.strip()
-    
-    # Creamos columnas de búsqueda en minúsculas puras limpiando espacios ocultos
-    df['categoria_minuscula'] = df['Categoria'].astype(str).str.strip().str.lower()
+    # Limpieza base para textos generales
     df['item_minuscula'] = df['Item'].astype(str).str.strip().str.lower()
-    df['valor_limpio'] = pd.to_numeric(df['Valor'], errors='coerce')
 except Exception as e:
     st.error("⚠️ Error al procesar la estructura de Google Sheets")
     st.stop()
 
-# Funciones de búsqueda robusta por patrón de texto
-def buscar_valor_por_palabra(palabra, valor_defecto):
+# NUEVO MOTOR REGEX: Extrae los dígitos numéricos de celdas como "miembrosLinkedin829"
+def extraer_numero_de_texto(palabra_clave, valor_defecto):
     try:
-        # Busca si la palabra (ej: 'linkedin') está contenida en cualquier parte del texto de la celda
-        filtro = df[df['item_minuscula'].str.contains(palabra.lower(), na=False)]
+        # Buscamos la fila que contiene la palabra clave (ej: 'linkedin')
+        filtro = df[df['item_minuscula'].str.contains(palabra_clave.lower(), na=False)]
         if not filtro.empty:
-            val = filtro.iloc[0]['valor_limpio']
-            if not pd.isna(val):
-                return int(val)
+            texto_celda = str(filtro.iloc[0]['Item'])
+            # Expresión regular para extraer todos los números continuos del texto
+            numeros_encontrados = re.findall(r'\d+', texto_celda)
+            if numeros_encontrados:
+                return int(numeros_encontrados[0])
+            
+            # Si no hay números en Item, intentamos leer la columna Valor por si acaso
+            val_col = pd.to_numeric(filtro.iloc[0]['Valor'], errors='coerce')
+            if not pd.isna(val_col):
+                return int(val_col)
         return valor_defecto
     except:
         return valor_defecto
@@ -75,7 +79,11 @@ def buscar_texto_por_palabra(palabra, valor_defecto):
     try:
         filtro = df[df['item_minuscula'].str.contains(palabra.lower(), na=False)]
         if not filtro.empty:
-            return str(filtro.iloc[0]['Valor'])
+            # Si la columna Valor está vacía, mostramos el texto de la columna Item limpia
+            val_col = str(filtro.iloc[0]['Valor']).strip()
+            if val_col and val_col != "nan":
+                return val_col
+            return str(filtro.iloc[0]['Item'])
         return valor_defecto
     except:
         return valor_defecto
@@ -115,9 +123,9 @@ col_izq, col_der = st.columns([1.2, 1])
 with col_izq:
     st.subheader("🚀 Embudo del Emprendedor (E&I)")
     
-    pre_inc = buscar_valor_por_palabra("pre", 60)
-    inc = buscar_valor_por_palabra("incubación", 25)
-    aceleracion = buscar_valor_por_palabra("aceleración", 0)
+    pre_inc = extraer_numero_de_texto("pre", 60)
+    inc = extraer_numero_de_texto("incubación", 25)
+    aceleracion = extraer_numero_de_texto("aceleración", 0)
 
     fig_embudo = go.Figure(go.Funnel(
         y=['Pre-incubación', 'Incubación', 'Aceleración'],
@@ -143,11 +151,11 @@ with col_izq:
 with col_der:
     st.subheader("🤝 Ecosistema de Vinculación (V&E)")
     
-    u = buscar_valor_por_palabra("universidades", 20)
-    i = buscar_valor_por_palabra("incubadoras", 20)
-    c = buscar_valor_por_palabra("cámaras", 19)
-    a = buscar_valor_por_palabra("asociaciones", 6)
-    ins = buscar_valor_por_palabra("instituciones", 4)
+    u = extraer_numero_de_texto("universidades", 20)
+    i = extraer_numero_de_texto("incubadoras", 20)
+    c = extraer_numero_de_texto("cámaras", 19)
+    a = extraer_numero_de_texto("asociaciones", 6)
+    ins = extraer_numero_de_texto("instituciones", 4)
     
     df_ve_dinamico = pd.DataFrame({
         'Item': ['Universidades', 'Incubadoras', 'Cámaras', 'Asociaciones', 'Instituciones'],
@@ -180,29 +188,29 @@ col_r1, col_r2, col_r3 = st.columns(3)
 with col_r1:
     st.subheader("🎯 Innovación Abierta y Retos")
     st.info("**Retos Territoriales Activos:**\n* Miraflores\n* Callao Tech")
-    st.metric(label="Innovación Abierta EU (Participantes)", value=buscar_valor_por_palabra("eu", 1))
-    st.metric(label="Polinización (Participantes)", value=buscar_valor_por_palabra("polinización", 1))
+    st.metric(label="Innovación Abierta EU (Participantes)", value=extraer_numero_de_texto("eu", 1))
+    st.metric(label="Polinización (Participantes)", value=extraer_numero_de_texto("polinización", 1))
 
 with col_r2:
     st.subheader("📅 Eventos Internacionales EULAC")
     datos_eventos = {
         'Sede / Evento': ['EULAC LIMA', 'EULAC CIX', 'EULAC AQP'],
         'Aforo Alcanzado': [
-            str(buscar_valor_por_palabra("lim", 120)) + " Pax", 
-            str(buscar_valor_por_palabra("cix", 120)) + " Pax", 
-            str(buscar_valor_por_palabra("aqp", 120)) + " Pax"
+            str(extraer_numero_de_texto("lim", 120)) + " Pax", 
+            str(extraer_numero_de_texto("cix", 120)) + " Pax", 
+            str(extraer_numero_de_texto("aqp", 120)) + " Pax"
         ]
     }
     st.table(pd.DataFrame(datos_eventos))
 
 with col_r3:
     st.subheader("🧠 Capital Intelectual")
-    st.metric(label="Red Global de Mentores", value=str(buscar_valor_por_palabra("mentores", 120)) + " Profesionales", delta="Estrategas")
+    st.metric(label="Red Global de Mentores", value=str(extraer_numero_de_texto("mentores", 120)) + " Profesionales", delta="Estrategas")
 
 st.markdown("---")
 
 # ==========================================
-# 7. SECCIÓN 4: ANALÍTICA DIGITAL Y REDES (CORRECCIÓN ESTRICTA)
+# 7. SECCIÓN 4: ANALÍTICA DIGITAL Y REDES (EXTRACCIÓN INTELIGENTE)
 # ==========================================
 st.subheader("🌐 Visitas a Plataformas vs. Comunidad Digital")
 col_v1, col_v2 = st.columns(2)
@@ -210,12 +218,12 @@ col_v1, col_v2 = st.columns(2)
 with col_v1:
     items_v = ['ATIPAQ', 'Mentores', 'Miraflores', 'Pre-incubación', 'Incubación', 'Callao Tech']
     vals_v = [
-        buscar_valor_por_palabra("atipaq", 243), 
-        buscar_valor_por_palabra("mentores", 114), 
-        buscar_valor_por_palabra("miraflores", 64), 
+        extraer_numero_de_texto("atipaq", 243), 
+        extraer_numero_de_texto("mentores", 114), 
+        extraer_numero_de_texto("miraflores", 64), 
         pre_inc, 
         inc, 
-        buscar_valor_por_palabra("callao", 7)
+        extraer_numero_de_texto("callao", 7)
     ]
     df_v_mock = pd.DataFrame({'Item': items_v, 'Valor': vals_v}).sort_values(by='Valor')
     fig_visitas = px.bar(df_v_mock, x='Valor', y='Item', orientation='h', template="plotly_white", color_discrete_sequence=['#0f172a'])
@@ -226,14 +234,14 @@ with col_v1:
     st.plotly_chart(fig_visitas, use_container_width=True)
 
 with col_v2:
-    # PROCESAMIENTO ROBUSTO INDIVIDUAL PARA REDES SOCIALES DESDE "miembrosLinkedin", etc.
+    # PROCESAMIENTO CON EXTRACCIÓN AUTOMÁTICA DE DÍGITOS
     redes_lista = ['TikTok', 'Instagram', 'Facebook', 'LinkedIn', 'YouTube']
     valores_redes = [
-        buscar_valor_por_palabra("tiktok", 7211),
-        buscar_valor_por_palabra("instagram", 2146),
-        buscar_valor_por_palabra("facebook", 386),
-        buscar_valor_por_palabra("linkedin", 829),
-        buscar_valor_por_palabra("youtube", 53)
+        extraer_numero_de_texto("tiktok", 7211),
+        extraer_numero_de_texto("instagram", 2146),
+        extraer_numero_de_texto("facebook", 386),
+        extraer_numero_de_texto("linkedin", 829),
+        extraer_numero_de_texto("youtube", 53)
     ]
     
     df_redes_lista = pd.DataFrame({
