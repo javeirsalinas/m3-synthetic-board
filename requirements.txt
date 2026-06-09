@@ -1,3 +1,6 @@
 streamlit
 google-genai
 plotly
+pandas
+pdfplumber
+fpdf2
