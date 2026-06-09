@@ -45,11 +45,17 @@ def generar_pdf_descargable(contenido_acta):
     
     # Limpieza rigurosa de caracteres especiales para evitar corrupciones en FPDF (ISO-8859-1)
     clean_text = contenido_acta.encode('latin-1', 'replace').decode('latin-1')
-    # Reemplazar viñetas o caracteres markdown comunes para el PDF
+    # Reemplazar formatos markdown comunes para una lectura limpia en el PDF
     clean_text = clean_text.replace("**", "").replace("#", "")
     
     pdf.multi_cell(0, 6, txt=clean_text)
-    return pdf.output()
+    
+    # SOLUCIÓN DEL LOG: Forzar la conversión del output a un bloque de bytes puro compatible con Streamlit
+    pdf_output = pdf.output()
+    if isinstance(pdf_output, str):
+        return bytes(pdf_output, 'latin-1')
+    else:
+        return bytes(pdf_output)
 
 # 3. FUNCIÓN PARA EXTRAER TEXTO DE LOS ARCHIVOS PDF ADJUNTOS (AGENT LAKE)
 def extraer_texto_pdf(archivo_pdf):
@@ -67,7 +73,7 @@ st.sidebar.markdown("---")
 model_choice = st.sidebar.selectbox(
     "🤖 Motor de Inteligencia Principal", 
     ["gemini-2.5-flash", "gemini-2.5-pro"],
-    help="Al usar tu cuenta prepago, el sistema responderá con alta velocidad y cuotas ampliadas."
+    help="Al usar tu cuenta prepago, el sistema responderá con alta velocidad y cuotas de peticiones ampliadas."
 )
 
 st.sidebar.markdown("### Estado de Infraestructura")
@@ -175,7 +181,7 @@ if st.button("🚀 CONVOCAR COMITÉ Y EVALUAR FUENTES", use_container_width=True
                 st.write("🔬 `[Procesamiento]` Corriendo simulaciones cruzadas de impacto regional y TRL tecnológico...")
                 time.sleep(1.2)
                 
-                st.write("✍ `[Orquestación]` Secretario General consolidando dictamen final y abriendo acta institucional...")
+                st.write("✍️ `[Orquestación]` Secretario General consolidando dictamen final y abriendo acta institucional...")
                 
                 # EJECUCIÓN ULTRA EFICIENTE DE UNA SOLA LLAMADA MASIVA
                 prompt_completo = construir_prompt_maestro(caso_humano, texto_contexto_pdf)
@@ -219,7 +225,7 @@ if "acta_final_ok" in st.session_state:
         with st.container(border=True):
             st.markdown(st.session_state["acta_final_ok"])
             
-        # PROCESO DE COMPILACIÓN Y EMISIÓN EN PDF
+        # PROCESO DE COMPILACIÓN Y EMISIÓN EN PDF (BÚFER DE BYTES CORREGIDO)
         pdf_binario = generar_pdf_descargable(st.session_state["acta_final_ok"])
         
         st.download_button(
@@ -244,5 +250,5 @@ if "acta_final_ok" in st.session_state:
             "Nivel de Impacto (%)": [85, 90, 75, 80, 95, 70, 85]
         }
         df = pd.DataFrame(data_simulada)
-        fig = px.bar(df, x="Agente Especialista", y="Nivel de Impacto (%)", color="Nivel de Impacto (%)", title="Puntuación de Priorización de Variables Estratégicas", template="plotly_dark")
+        fig = px.bar(df, x="Agente Especialista", y="Nivel de Impacto (%)", color="Nivel de Impacto (%)", title="Puntuación de Priorización de Variables Strategicas", template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
